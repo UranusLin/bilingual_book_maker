@@ -11,6 +11,7 @@ import openai
 import requests
 from bs4 import BeautifulSoup as bs
 from ebooklib import epub
+import PyPDF2
 from rich import print
 from tqdm import tqdm
 
@@ -222,6 +223,51 @@ class BEPUB:
             raise Exception("can not save resume file")
 
 
+class PDF:
+    def __init__(self, pdf_name, model, key, resume):
+        self.pdf_name = pdf_name
+        self.translate_model = model(key)
+        self.origin_book = PyPDF2.PdfReader(self.pdf_name)
+        self.p_to_save = []
+        self.resume = resume
+        self.bin_path = f"{Path(pdf_name).parent}/.{Path(pdf_name).stem}.temp.bin"
+        if self.resume:
+            self.load_state()
+
+    @staticmethod
+    def _is_special_text(text):
+        return text.isdigit() or text.isspace()
+
+    def make_bilingual_book(self):
+        new_book = PyPDF2.PdfWriter()
+        new_book.metadata = self.origin_book.metadata
+        print("TODO need process bar here: " + str(len(self.origin_book.pages)))
+        try:
+            for page in self.origin_book.pages:
+                print(page)
+                print(page.extract_text())
+
+        except (KeyboardInterrupt, Exception) as e:
+            print(e)
+            print("you can resume it next time")
+            self.save_progress()
+            exit(0)
+
+    def load_state(self):
+        try:
+            with open(self.bin_path, "rb") as f:
+                self.p_to_save = pickle.load(f)
+        except:
+            raise Exception("can not load resume file")
+
+    def save_progress(self):
+        try:
+            with open(self.bin_path, "wb") as f:
+                pickle.dump(self.p_to_save, f)
+        except:
+            raise Exception("can not save resume file")
+
+
 if __name__ == "__main__":
     MODEL_DICT = {"gpt3": GPT3, "chatgpt": ChatGPT}
     parser = argparse.ArgumentParser()
@@ -272,7 +318,7 @@ if __name__ == "__main__":
         type=str,
         choices=sorted(LANGUAGES.keys())
         + sorted([k.title() for k in TO_LANGUAGE_CODE.keys()]),
-        default="zh-hans",
+        default="zh-hant",
         help="language to translate to",
     )
     parser.add_argument(
